@@ -27,6 +27,12 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
+	<key>LSApplicationQueriesSchemes</key>
+<array>
+  <string>whatsapp</string>
+  <string>https</string>
+  <string>http</string>
+</array>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>

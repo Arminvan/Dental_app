@@ -1,77 +1,93 @@
 import 'package:flutter/material.dart';
-import '../../services/firebase_service.dart';
-import '../../models/paciente_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/paciente_model.dart';
 
-class PacientesPage extends StatelessWidget {
+class PacientesPage extends StatefulWidget {
+  // Cambiado a StatefulWidget
   const PacientesPage({super.key});
 
   @override
+  State<PacientesPage> createState() => _PacientesPageState();
+}
+
+class _PacientesPageState extends State<PacientesPage> {
+  String _filtro = ""; // Variable para el buscador
+
+  @override
   Widget build(BuildContext context) {
-    final service = FirebaseService();
+    final CollectionReference pacientesRef = FirebaseFirestore.instance
+        .collection('pacientes');
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Pacientes"), centerTitle: true),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/nuevo'),
-        child: const Icon(Icons.add),
+      appBar: AppBar(
+        title: const Text("Mis Pacientes"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: () => context.push('/nuevo_paciente'),
+          ),
+        ],
+        // Agregamos el buscador debajo del título
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: "Buscar paciente...",
+                prefixIcon: const Icon(Icons.search),
+                fillColor: Colors.white,
+                filled: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _filtro = value
+                      .toLowerCase(); // Actualiza la lista al escribir
+                });
+              },
+            ),
+          ),
+        ),
       ),
-      body: StreamBuilder<List<Paciente>>(
-        stream: service.getPacientes(),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: pacientesRef.orderBy('nombre').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.hasError)
+            return const Center(child: Text("Error al cargar"));
+          if (!snapshot.hasData)
             return const Center(child: CircularProgressIndicator());
-          }
 
-          if (snapshot.hasError) {
-            return const Center(child: Text("Error al cargar pacientes"));
-          }
+          // Filtramos la lista basándonos en el texto del buscador
+          final docs = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final nombre = (data['nombre'] ?? "").toString().toLowerCase();
+            return nombre.contains(_filtro);
+          }).toList();
 
-          final pacientes = snapshot.data ?? [];
-
-          if (pacientes.isEmpty) {
-            return const Center(child: Text("No hay pacientes registrados"));
+          if (docs.isEmpty) {
+            return const Center(child: Text("No se encontraron pacientes"));
           }
 
           return ListView.builder(
-            itemCount: pacientes.length,
-            padding: const EdgeInsets.symmetric(
-              vertical: 10,
-            ), // Espaciado extra arriba/abajo
+            itemCount: docs.length,
             itemBuilder: (context, index) {
-              final p = pacientes[index];
+              final data = docs[index].data() as Map<String, dynamic>;
+              final paciente = Paciente.fromFirestore(data, docs[index].id);
 
-              // --- INTEGRACIÓN DEL CÓDIGO DE LA CARD ---
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: Text(
-                      p.nombre.isNotEmpty ? p.nombre[0].toUpperCase() : "?",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    p.nombre,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text("Tel: ${p.telefono}"),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => context.push('/detalle/${p.id}'),
-                ),
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(paciente.nombre),
+                subtitle: Text(paciente.telefono),
+                onTap: () {
+                  // Mantenemos la lógica de enviar el objeto completo para evitar errores
+                  context.push('/paciente_detalle', extra: paciente);
+                },
               );
             },
           );

@@ -8,7 +8,7 @@ class DentalApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      routerConfig: router,
+      routerConfig: appRouter,
       title: "Dental App",
       theme: ThemeData(
         useMaterial3: true,
