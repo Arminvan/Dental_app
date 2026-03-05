@@ -8,7 +8,7 @@ class Cita {
   final DateTime fechaHora;
   final String motivo;
   final bool recordatorioEnviado;
-  final int duracionMinutos; // Para evitar encimar citas
+  final int duracionMinutos;
 
   Cita({
     required this.id,
@@ -18,10 +18,27 @@ class Cita {
     required this.fechaHora,
     required this.motivo,
     this.recordatorioEnviado = false,
-    this.duracionMinutos = 45, // Duración estándar por defecto
+    this.duracionMinutos = 45,
   });
 
-  // Convierte un documento de Firestore a un objeto Cita
+  // --- NUEVOS GETTERS PARA VALIDACIÓN ---
+
+  // Calcula la hora exacta en la que termina la cita
+  DateTime get fechaHoraFin =>
+      fechaHora.add(Duration(minutes: duracionMinutos));
+
+  // Verifica si esta cita se cruza con otra cita propuesta
+  bool tieneConflictoCon(DateTime otraFechaInicio, int otraDuracion) {
+    final otraFechaFin = otraFechaInicio.add(Duration(minutes: otraDuracion));
+
+    // Lógica de traslape: Una cita se encima si empieza antes de que la otra termine
+    // Y termina después de que la otra empiece.
+    return fechaHora.isBefore(otraFechaFin) &&
+        otraFechaInicio.isBefore(fechaHoraFin);
+  }
+
+  // --- MÉTODOS EXISTENTES AJUSTADOS ---
+
   factory Cita.fromFirestore(Map<String, dynamic> data, String id) {
     return Cita(
       id: id,
@@ -35,7 +52,6 @@ class Cita {
     );
   }
 
-  // Convierte un objeto Cita a un Map para guardar en Firestore
   Map<String, dynamic> toMap() {
     return {
       'pacienteId': pacienteId,
@@ -48,15 +64,14 @@ class Cita {
     };
   }
 
-  // Método útil para generar el link de WhatsApp con mensaje personalizado
   String generarEnlaceWhatsApp() {
+    final minutos = fechaHora.minute.toString().padLeft(2, '0');
     final mensaje =
         "Hola $nombrePaciente, le recordamos su cita dental el día "
         "${fechaHora.day}/${fechaHora.month} a las "
-        "${fechaHora.hour}:${fechaHora.minute.toString().padLeft(2, '0')}. "
+        "${fechaHora.hour}:$minutos. "
         "Por favor confirme su asistencia.";
 
-    // Limpiamos el teléfono de caracteres extraños si los hay
     final telLimpio = telefonoPaciente.replaceAll(RegExp(r'[^0-9]'), '');
     return "https://wa.me/$telLimpio?text=${Uri.encodeComponent(mensaje)}";
   }

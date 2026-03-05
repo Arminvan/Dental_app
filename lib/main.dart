@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // IMPORTANTE: Para configurar Firestore
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:intl/date_symbol_data_local.dart';
 
-// IMPORTACIÓN DE TU ROUTER (Ajusta la ruta si es necesario)
+// IMPORTACIÓN DE TU ROUTER
 import 'package:dental_app/app_router.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -14,6 +15,13 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // --- AJUSTE PARA SOPORTE OFFLINE (SIN RED) ---
+  // Esto permite que los datos se guarden localmente y se suban al recuperar la señal
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
 
   // Inicialización de fechas para evitar que la app no responda
   await initializeDateFormatting('es_ES', null);
@@ -27,7 +35,7 @@ void main() async {
 
   const InitializationSettings initializationSettings = InitializationSettings(
     android: initializationSettingsAndroid,
-    iOS: initializationSettingsIOS, // Mayúsculas corregidas para evitar error
+    iOS: initializationSettingsIOS,
   );
 
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
@@ -40,7 +48,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CAMBIO VITAL: Usamos MaterialApp.router para habilitar GoRouter
     return MaterialApp.router(
       title: 'Dental App',
       debugShowCheckedModeBanner: false,
@@ -48,7 +55,6 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      // Conectamos con el router estático que me pasaste
       routerConfig: AppRouter.router,
     );
   }

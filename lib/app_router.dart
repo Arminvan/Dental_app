@@ -6,6 +6,7 @@ import './features/pacientes/pacientes_page.dart';
 import './features/dashboard/dashboard_page.dart';
 import './features/odontograma/odontograma_page.dart';
 import './models/paciente_model.dart';
+import '../models/cita_model.dart';
 import './features/finanzas/finanzas_page.dart';
 import './features/auth/login_page.dart';
 import './features/historia/historia_page.dart';
@@ -90,8 +91,13 @@ class AppRouter {
       GoRoute(
         path: '/nueva_cita',
         builder: (context, state) {
-          // Si pasamos un paciente desde el expediente, lo extraemos aquí
-          final paciente = state.extra as Paciente?;
+          // Intentamos extraer el paciente si viene como 'extra'
+          // Si no viene nada (desde la agenda), 'paciente' será null
+          final paciente = state.extra is Paciente
+              ? state.extra as Paciente
+              : null;
+
+          // Pasamos el objeto (sea null o no) a la página
           return NuevaCitaPage(paciente: paciente);
         },
       ),

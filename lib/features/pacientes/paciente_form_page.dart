@@ -44,7 +44,6 @@ class _PacienteFormPageState extends State<PacienteFormPage> {
     setState(() => _isLoading = true);
     final db = FirebaseFirestore.instance;
 
-    // Mapeo de datos (El costo se mantiene igual si existe, o inicia en 0)
     final datos = {
       "nombre": _nombreController.text.trim(),
       "edad": int.tryParse(_edadController.text.trim()) ?? 0,
@@ -52,25 +51,37 @@ class _PacienteFormPageState extends State<PacienteFormPage> {
       "alergias": _alergiasController.text.trim(),
       "observaciones": _observacionesController.text.trim(),
       "fechaAlta": Timestamp.fromDate(_fechaAlta),
-      // Mantenemos el costo si ya existía (edición), de lo contrario 0.0
       "costoTotalTratamiento": widget.paciente?.costoTotalTratamiento ?? 0.0,
     };
 
     try {
       if (widget.paciente == null) {
-        await db.collection("pacientes").add(datos);
+        // EL CAMBIO ESTÁ AQUÍ:
+        // No usamos 'await' para la operación de red si queremos que sea instantáneo offline
+        db.collection("pacientes").add(datos);
       } else {
-        await db.collection("pacientes").doc(widget.paciente!.id).update(datos);
+        db.collection("pacientes").doc(widget.paciente!.id).update(datos);
       }
 
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error al guardar: $e")));
-    }
+      // Dejamos un pequeño delay artificial para que el médico vea que algo pasó
+      await Future.delayed(const Duration(milliseconds: 500));
 
-    setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "💾 Guardado localmente. Se sincronizará al detectar red.",
+            ),
+          ),
+        );
+        Navigator.pop(context); // Cerramos la pantalla de inmediato
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -81,6 +92,55 @@ class _PacienteFormPageState extends State<PacienteFormPage> {
     _alergiasController.dispose();
     _observacionesController.dispose();
     super.dispose();
+  }
+
+  /// WIDGET PARA AVISAR EL ESTADO DE CONEXIÓN
+  Widget _buildStatusIndicator() {
+    return StreamBuilder<QuerySnapshot>(
+      // Escuchamos la colección para detectar cambios en los metadatos
+      stream: FirebaseFirestore.instance
+          .collection('pacientes')
+          .snapshots(includeMetadataChanges: true),
+      builder: (context, snapshot) {
+        // Verificamos si hay escrituras pendientes en la cola de Firestore
+        bool isSyncing = snapshot.data?.metadata.hasPendingWrites ?? false;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isSyncing
+                ? Colors.orange.withOpacity(0.1)
+                : Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSyncing ? Icons.cloud_off : Icons.cloud_done,
+                color: isSyncing ? Colors.orange : Colors.green,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isSyncing
+                      ? "Modo Offline: Los cambios se guardarán localmente y se subirán al detectar red."
+                      : "Conectado: Los datos se sincronizan con la nube en tiempo real.",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSyncing
+                        ? Colors.orange.shade900
+                        : Colors.green.shade900,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override

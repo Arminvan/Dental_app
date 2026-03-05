@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:url_launcher/url_launcher.dart'; // Para abrir WhatsApp en Android/iOS
-import 'package:go_router/go_router.dart'; // Para navegación fluida
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Iconos sociales
+import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../models/cita_model.dart';
 
 class AgendaPage extends StatefulWidget {
@@ -25,41 +25,24 @@ class _AgendaPageState extends State<AgendaPage> {
     _selectedDay = _focusedDay;
   }
 
-  /// FUNCIÓN UNIVERSAL DE WHATSAPP (iOS y Android)
   Future<void> _enviarWhatsApp(Cita cita) async {
-    // 1. Limpieza de número y preparación de mensaje
     final telefono = cita.telefonoPaciente.replaceAll(RegExp(r'[^0-9]'), '');
     final mensaje =
         "Hola ${cita.nombrePaciente}, le recordamos su cita dental "
         "hoy a las ${cita.fechaHora.hour.toString().padLeft(2, '0')}:${cita.fechaHora.minute.toString().padLeft(2, '0')}. "
         "¡Le esperamos!";
 
-    // 2. URL Universal https://wa.me/
-    // Se agrega el código de país (52 para México) si no está presente
     final urlStr =
         "https://wa.me/52$telefono?text=${Uri.encodeComponent(mensaje)}";
     final Uri url = Uri.parse(urlStr);
 
     try {
-      // LaunchMode.externalApplication es CRÍTICO para la compatibilidad en iOS
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-
-        // Actualizamos estado para que el icono cambie de color
         await FirebaseFirestore.instance
             .collection('citas')
             .doc(cita.id)
             .update({'recordatorioEnviado': true});
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "No se pudo abrir WhatsApp. Verifique si la app está instalada.",
-              ),
-            ),
-          );
-        }
       }
     } catch (e) {
       debugPrint("Error al lanzar WhatsApp: $e");
@@ -72,7 +55,6 @@ class _AgendaPageState extends State<AgendaPage> {
       appBar: AppBar(title: const Text("Agenda de Consultas"), elevation: 0),
       body: Column(
         children: [
-          // StreamBuilder optimizado para no congelar la app
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection("citas")
@@ -139,7 +121,6 @@ class _AgendaPageState extends State<AgendaPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        // Navegación con GoRouter para evitar errores de Navigator
         onPressed: () => context.push('/nueva_cita'),
         label: const Text("Nueva Cita"),
         icon: const Icon(Icons.add),
@@ -147,7 +128,6 @@ class _AgendaPageState extends State<AgendaPage> {
     );
   }
 
-  /// Widget de la lista de citas ajustado con "Deslizar para Eliminar"
   Widget _buildListaCitasDelDia() {
     final citasDia = _todasLasCitasCache
         .where((cita) => isSameDay(cita.fechaHora, _selectedDay))
@@ -166,13 +146,10 @@ class _AgendaPageState extends State<AgendaPage> {
         final hora =
             "${cita.fechaHora.hour.toString().padLeft(2, '0')}:${cita.fechaHora.minute.toString().padLeft(2, '0')}";
 
-        // --- AJUSTE: AGREGAMOS DISMISSIBLE PARA ELIMINAR ---
         return Dismissible(
-          key: Key(cita.id), // ID único de la cita en Firebase
-          direction:
-              DismissDirection.endToStart, // Deslizar de derecha a izquierda
+          key: Key(cita.id),
+          direction: DismissDirection.endToStart,
           confirmDismiss: (direction) async {
-            // Diálogo de confirmación para evitar borrar por error
             return await showDialog(
               context: context,
               builder: (context) => AlertDialog(
@@ -197,23 +174,10 @@ class _AgendaPageState extends State<AgendaPage> {
             );
           },
           onDismissed: (direction) async {
-            // Eliminación real en Firebase Firestore
-            try {
-              await FirebaseFirestore.instance
-                  .collection('citas')
-                  .doc(cita.id)
-                  .delete();
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text("Cita de ${cita.nombrePaciente} eliminada"),
-                  ),
-                );
-              }
-            } catch (e) {
-              debugPrint("Error al eliminar cita: $e");
-            }
+            await FirebaseFirestore.instance
+                .collection('citas')
+                .doc(cita.id)
+                .delete();
           },
           background: Container(
             alignment: Alignment.centerRight,
@@ -236,6 +200,8 @@ class _AgendaPageState extends State<AgendaPage> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListTile(
+              // --- AJUSTE DE EDICIÓN: Al tocar la cita, navegamos al formulario con el 'extra' ---
+              onTap: () => context.push('/nueva_cita', extra: cita),
               leading: CircleAvatar(
                 backgroundColor: Colors.blue[50],
                 child: Text(
